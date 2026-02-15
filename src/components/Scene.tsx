@@ -1,79 +1,67 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Environment } from "@react-three/drei";
+import { Environment, Float } from "@react-three/drei";
 import * as THREE from "three";
-import Beaker from "./Beaker";
-import ScrollLights from "./ScrollLights";
+import Plant from "./Plant";
 
-function CameraRig({ scrollProgress }: { scrollProgress: number }) {
-  useFrame(({ camera }) => {
-    camera.position.y = 1.5 + Math.sin(scrollProgress * Math.PI) * 0.3;
-    camera.lookAt(0, 0.8, 0);
-  });
-  return null;
-}
-
-function BeakerGroup({ scrollProgress }: { scrollProgress: number }) {
+function AutoRotate() {
   const groupRef = useRef<THREE.Group>(null);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y = scrollProgress * Math.PI * 0.3;
+      groupRef.current.rotation.y += delta * 0.15;
     }
   });
 
   return (
     <group ref={groupRef}>
-      <Beaker />
+      <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5}>
+        <Plant />
+      </Float>
     </group>
   );
 }
 
-function Floor() {
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.3, 0]}>
-      <planeGeometry args={[20, 20]} />
-      <meshStandardMaterial color="#0a0a0a" roughness={0.8} metalness={0.2} />
-    </mesh>
-  );
-}
-
 export default function Scene() {
-  const [scrollProgress, setScrollProgress] = useState(0);
-
-  const handleScroll = useCallback(() => {
-    const scrollable =
-      document.documentElement.scrollHeight - window.innerHeight;
-    if (scrollable > 0) {
-      setScrollProgress(window.scrollY / scrollable);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
-
   return (
-    <div className="fixed inset-0 z-0">
+    <div className="w-full h-full">
       <Canvas
-        camera={{ position: [0, 1.5, 6], fov: 35, near: 0.1, far: 100 }}
+        camera={{ position: [0, 2, 5], fov: 40, near: 0.1, far: 100 }}
         gl={{
           antialias: true,
+          alpha: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.0,
+          toneMappingExposure: 1.2,
           powerPreference: "high-performance",
         }}
+        style={{ background: "transparent" }}
         dpr={[1, 2]}
       >
-        <color attach="background" args={["#0a0a0a"]} />
-        <Environment preset="night" background={false} />
-        <CameraRig scrollProgress={scrollProgress} />
-        <ScrollLights scrollProgress={scrollProgress} />
-        <BeakerGroup scrollProgress={scrollProgress} />
-        <Floor />
+        <Environment preset="city" background={false} />
+
+        {/* Soft, natural lighting */}
+        <ambientLight color="#ffffff" intensity={0.6} />
+        <directionalLight
+          color="#fffaf0"
+          intensity={1.8}
+          position={[5, 8, 3]}
+          castShadow={false}
+        />
+        <directionalLight
+          color="#e8f0ff"
+          intensity={0.5}
+          position={[-3, 4, -2]}
+        />
+        <pointLight
+          color="#d4ffda"
+          intensity={0.8}
+          position={[0, 3, 2]}
+          distance={10}
+        />
+
+        <AutoRotate />
       </Canvas>
     </div>
   );

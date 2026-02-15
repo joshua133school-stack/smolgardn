@@ -2,24 +2,21 @@
 
 import { useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Environment, Float } from "@react-three/drei";
 import * as THREE from "three";
-import Plant from "./Plant";
+import Farm from "./Farm";
 
-function AutoRotate() {
+function SlowOrbit() {
   const groupRef = useRef<THREE.Group>(null);
 
   useFrame((_, delta) => {
     if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.15;
+      groupRef.current.rotation.y += delta * 0.06;
     }
   });
 
   return (
     <group ref={groupRef}>
-      <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5}>
-        <Plant />
-      </Float>
+      <Farm />
     </group>
   );
 }
@@ -28,40 +25,45 @@ export default function Scene() {
   return (
     <div className="w-full h-full">
       <Canvas
-        camera={{ position: [0, 2, 5], fov: 40, near: 0.1, far: 100 }}
+        camera={{ position: [6, 7, 10], fov: 45, near: 0.1, far: 100 }}
         gl={{
           antialias: true,
           alpha: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.2,
+          toneMappingExposure: 1.3,
           powerPreference: "high-performance",
         }}
         style={{ background: "transparent" }}
         dpr={[1, 2]}
+        onCreated={({ camera }) => {
+          camera.lookAt(0, 0, 0);
+        }}
       >
-        <Environment preset="city" background={false} />
+        {/* Sky-like ambient */}
+        <ambientLight color="#f0f4ff" intensity={0.7} />
 
-        {/* Soft, natural lighting */}
-        <ambientLight color="#ffffff" intensity={0.6} />
+        {/* Sun */}
         <directionalLight
-          color="#fffaf0"
-          intensity={1.8}
-          position={[5, 8, 3]}
-          castShadow={false}
+          color="#fff8e8"
+          intensity={2.0}
+          position={[8, 12, 4]}
         />
+
+        {/* Fill from opposite side */}
         <directionalLight
-          color="#e8f0ff"
+          color="#c8d8ff"
+          intensity={0.4}
+          position={[-5, 6, -3]}
+        />
+
+        {/* Warm bounce from ground */}
+        <hemisphereLight
+          color="#87ceeb"
+          groundColor="#4a8c3f"
           intensity={0.5}
-          position={[-3, 4, -2]}
-        />
-        <pointLight
-          color="#d4ffda"
-          intensity={0.8}
-          position={[0, 3, 2]}
-          distance={10}
         />
 
-        <AutoRotate />
+        <SlowOrbit />
       </Canvas>
     </div>
   );

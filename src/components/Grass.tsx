@@ -175,10 +175,9 @@ const fragmentShader = /* glsl */ `
  *  React component
  * ───────────────────────────────────────────────────────────────── */
 const BLADE_SEGMENTS = 6; // vertical segments per blade
-const BLADE_VERTICES = (BLADE_SEGMENTS + 1) * 2; // 2 verts per row
 
-function makeBladeGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.BufferGeometry();
+function makeBladeGeometry(): THREE.InstancedBufferGeometry {
+  const geo = new THREE.InstancedBufferGeometry();
 
   const positions: number[] = [];
   const normals: number[] = [];
@@ -265,6 +264,9 @@ export default function Grass({
     geo.setAttribute("instanceLean", new THREE.InstancedBufferAttribute(leans, 1));
     geo.setAttribute("instancePhase", new THREE.InstancedBufferAttribute(phases, 1));
     geo.setAttribute("instanceColorVar", new THREE.InstancedBufferAttribute(colorVars, 1));
+
+    // Tell Three.js how many instances to draw
+    geo.instanceCount = count;
 
     return { geometry: geo };
   }, [count, radius]);

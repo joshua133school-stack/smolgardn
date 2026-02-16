@@ -1,22 +1,31 @@
 "use client";
 
-import { useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
-import Farm from "./Farm";
 
-function SlowOrbit() {
-  const groupRef = useRef<THREE.Group>(null);
-
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += delta * 0.06;
-    }
-  });
+function CornerCubes() {
+  const s = 1; // cube size
+  const half = s / 2;
 
   return (
-    <group ref={groupRef}>
-      <Farm />
+    <group>
+      {/* Red — along X axis */}
+      <mesh position={[half, 0, 0]}>
+        <boxGeometry args={[s, s, s]} />
+        <meshStandardMaterial color="#e63946" roughness={0.35} metalness={0.05} />
+      </mesh>
+
+      {/* Green — along Y axis */}
+      <mesh position={[0, half, 0]}>
+        <boxGeometry args={[s, s, s]} />
+        <meshStandardMaterial color="#2a9d4e" roughness={0.35} metalness={0.05} />
+      </mesh>
+
+      {/* Blue — along Z axis */}
+      <mesh position={[0, 0, half]}>
+        <boxGeometry args={[s, s, s]} />
+        <meshStandardMaterial color="#457bbd" roughness={0.35} metalness={0.05} />
+      </mesh>
     </group>
   );
 }
@@ -25,12 +34,12 @@ export default function Scene() {
   return (
     <div className="w-full h-full">
       <Canvas
-        camera={{ position: [6, 7, 10], fov: 45, near: 0.1, far: 100 }}
+        camera={{ position: [3, 3, 3], fov: 40, near: 0.1, far: 100 }}
         gl={{
           antialias: true,
           alpha: true,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.3,
+          toneMappingExposure: 1.2,
           powerPreference: "high-performance",
         }}
         style={{ background: "transparent" }}
@@ -39,31 +48,11 @@ export default function Scene() {
           camera.lookAt(0, 0, 0);
         }}
       >
-        {/* Sky-like ambient */}
-        <ambientLight color="#f0f4ff" intensity={0.7} />
+        <ambientLight color="#ffffff" intensity={0.6} />
+        <directionalLight color="#ffffff" intensity={1.8} position={[5, 8, 4]} />
+        <directionalLight color="#c8d8ff" intensity={0.4} position={[-3, 4, -2]} />
 
-        {/* Sun */}
-        <directionalLight
-          color="#fff8e8"
-          intensity={2.0}
-          position={[8, 12, 4]}
-        />
-
-        {/* Fill from opposite side */}
-        <directionalLight
-          color="#c8d8ff"
-          intensity={0.4}
-          position={[-5, 6, -3]}
-        />
-
-        {/* Warm bounce from ground */}
-        <hemisphereLight
-          color="#87ceeb"
-          groundColor="#4a8c3f"
-          intensity={0.5}
-        />
-
-        <SlowOrbit />
+        <CornerCubes />
       </Canvas>
     </div>
   );

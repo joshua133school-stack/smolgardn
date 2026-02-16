@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
@@ -25,6 +25,8 @@ const vertexShader = /* glsl */ `
 
   uniform float uTime;
   uniform float uWindStrength;
+  uniform float uTurbulence;
+  uniform float uBladeWidth;
 
   varying float vHeight;       // 0 at base, 1 at tip
   varying float vColorVar;
@@ -64,19 +66,20 @@ const vertexShader = /* glsl */ `
     vec2 worldXZ = instanceOffset.xz;
     float windNoise  = noise(worldXZ * 0.4 + uTime * 0.3);
     float windNoise2 = noise(worldXZ * 1.2 - uTime * 0.5);
+    float turbNoise  = noise(worldXZ * 2.5 + uTime * 0.8) * uTurbulence;
     float windAngle  = windNoise * 6.2831;
-    float windPower  = (0.5 + 0.5 * windNoise2) * uWindStrength;
+    float windPower  = (0.5 + 0.5 * windNoise2 + turbNoise) * uWindStrength;
 
     // Bend increases with height² (base stays rooted)
     float bend = t * t * windPower;
     vec3 windDisp = vec3(cos(windAngle), 0.0, sin(windAngle)) * bend;
 
-    // Additional per-blade gust flutter
-    float flutter = sin(uTime * 3.5 + instancePhase * 6.2831) * 0.04 * t * t;
+    // Additional per-blade gust flutter (scaled by turbulence)
+    float flutter = sin(uTime * 3.5 + instancePhase * 6.2831) * (0.04 + uTurbulence * 0.06) * t * t;
 
     // ─── Build blade in local space ────────────────
-    // X is width, Y is height
-    float w = instanceWidth * (1.0 - t * 0.85); // taper toward tip
+    // X is width, Y is height — blade width driven by uniform
+    float w = uBladeWidth * instanceWidth * (1.0 - t * 0.85); // taper toward tip
     vec3 localPos = vec3(position.x * w, position.y * instanceHeight, 0.0);
 
     // Apply lean (a static forward-tilt curve)
@@ -209,16 +212,26 @@ interface GrassProps {
   count?: number;
   radius?: number;
   windStrength?: number;
+  turbulence?: number;
+  bladeWidth?: number;
+  rootColor?: string;
+  tipColor?: string;
+  sunDir?: [number, number, number];
 }
 
 export default function Grass({
-  count = 80000,
-  radius = 1.4,
+  count = 50000,
+  radius = 1.2,
   windStrength = 0.15,
+  turbulence = 0.3,
+  bladeWidth = 0.012,
+  rootColor = "#1a3a0a",
+  tipColor = "#6db33f",
+  sunDir = [4, 8, 3],
 }: GrassProps) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
 
-  const { geometry, instanceAttribs } = useMemo(() => {
+  const { geometry } = useMemo(() => {
     const geo = makeBladeGeometry();
 
     const offsets = new Float32Array(count * 3);
@@ -239,7 +252,7 @@ export default function Grass({
 
       rotations[i] = Math.random() * Math.PI * 2;
       heights[i] = 0.15 + Math.random() * 0.3; // 0.15 – 0.45 units
-      widths[i] = 0.008 + Math.random() * 0.012;
+      widths[i] = 0.6 + Math.random() * 0.8; // relative multiplier
       leans[i] = (Math.random() - 0.3) * 0.6;
       phases[i] = Math.random();
       colorVars[i] = Math.random();
@@ -253,24 +266,35 @@ export default function Grass({
     geo.setAttribute("instancePhase", new THREE.InstancedBufferAttribute(phases, 1));
     geo.setAttribute("instanceColorVar", new THREE.InstancedBufferAttribute(colorVars, 1));
 
-    return {
-      geometry: geo,
-      instanceAttribs: { offsets, rotations, heights, widths, leans, phases, colorVars },
-    };
+    return { geometry: geo };
   }, [count, radius]);
 
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
       uWindStrength: { value: windStrength },
-      uBaseColor: { value: new THREE.Color("#1a3a0a") },
-      uTipColor: { value: new THREE.Color("#6db33f") },
+      uTurbulence: { value: turbulence },
+      uBladeWidth: { value: bladeWidth },
+      uBaseColor: { value: new THREE.Color(rootColor) },
+      uTipColor: { value: new THREE.Color(tipColor) },
       uSSSColor: { value: new THREE.Color("#8ec44c") },
-      uSunDir: { value: new THREE.Vector3(4, 8, 3).normalize() },
+      uSunDir: { value: new THREE.Vector3(...sunDir).normalize() },
       uSunColor: { value: new THREE.Color("#fff5e0") },
     }),
-    [windStrength]
+    // Only create once — we update in useEffect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
+
+  // Update uniforms reactively when props change
+  useEffect(() => {
+    uniforms.uWindStrength.value = windStrength;
+    uniforms.uTurbulence.value = turbulence;
+    uniforms.uBladeWidth.value = bladeWidth;
+    uniforms.uBaseColor.value.set(rootColor);
+    uniforms.uTipColor.value.set(tipColor);
+    uniforms.uSunDir.value.set(...sunDir).normalize();
+  }, [uniforms, windStrength, turbulence, bladeWidth, rootColor, tipColor, sunDir]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
@@ -278,10 +302,8 @@ export default function Grass({
     mat.uniforms.uTime.value += delta;
   });
 
-  // We use raw <mesh> with instanced geometry rather than <instancedMesh>
-  // because we're using InstancedBufferAttribute on the geometry directly.
   return (
-    <mesh ref={meshRef as any} frustumCulled={false}>
+    <mesh ref={meshRef} frustumCulled={false}>
       <primitive object={geometry} attach="geometry" />
       <shaderMaterial
         vertexShader={vertexShader}
@@ -296,11 +318,11 @@ export default function Grass({
 }
 
 /* ─── Ground plane beneath the grass ─────────────────────────── */
-export function GrassGround({ radius = 1.55 }: { radius?: number }) {
+export function GrassGround({ radius = 1.25 }: { radius?: number }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]} receiveShadow>
       <circleGeometry args={[radius, 64]} />
-      <meshStandardMaterial color="#2d5a1e" roughness={1} metalness={0} />
+      <meshStandardMaterial color="#1a2e10" roughness={1} metalness={0} />
     </mesh>
   );
 }

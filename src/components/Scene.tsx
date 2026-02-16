@@ -2,57 +2,86 @@
 
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, ContactShadows } from "@react-three/drei";
 import Grass, { GrassGround } from "./Grass";
+import type { GrassParams } from "./GrassControls";
+
+/* ─── Convert azimuth/elevation to a direction vector ──────── */
+function sunDirection(azimuthDeg: number, elevationDeg: number): [number, number, number] {
+  const az = (azimuthDeg * Math.PI) / 180;
+  const el = (elevationDeg * Math.PI) / 180;
+  return [Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)];
+}
 
 /* ─── Main scene ─────────────────────────────────────────────── */
-export default function Scene() {
+export default function Scene({ params }: { params: GrassParams }) {
+  const sunDir = sunDirection(params.sunAzimuth, params.sunElevation);
+  const sunIntensity = 1.5 + (params.sunElevation / 90) * 1.5;
+
   return (
     <div className="w-full h-full">
       <Canvas
-        camera={{ position: [0.3, 0.18, 0.6], fov: 55, near: 0.005, far: 50 }}
+        camera={{ position: [2, 1.8, 2], fov: 40, near: 0.01, far: 50 }}
         gl={{
           antialias: true,
           alpha: false,
           powerPreference: "high-performance",
         }}
-        style={{ background: "#5dadec" }}
         dpr={[1, 2]}
         onCreated={({ camera }) => {
-          camera.lookAt(0, 0.15, 0);
+          camera.lookAt(0, 0.1, 0);
         }}
       >
-        {/* Simple blue sky color via clear color */}
-        <color attach="background" args={["#5dadec"]} />
+        {/* Dark background */}
+        <color attach="background" args={["#0a0a0a"]} />
 
-        {/* Sun */}
+        {/* Sun — direction driven by controls */}
         <directionalLight
           color="#fffbe8"
-          intensity={2.5}
-          position={[4, 8, 3]}
+          intensity={sunIntensity}
+          position={sunDir}
         />
 
-        {/* Sky fill */}
-        <directionalLight color="#87ceeb" intensity={0.4} position={[-3, 5, -2]} />
+        {/* Fill */}
+        <directionalLight color="#1a2a40" intensity={0.4} position={[-3, 5, -2]} />
 
-        {/* Ambient */}
-        <ambientLight color="#ffffff" intensity={0.5} />
+        {/* Ambient — low for dark scene */}
+        <ambientLight color="#1a2030" intensity={0.5} />
 
-        {/* Grass + ground */}
+        {/* Soft shadow beneath the grass disc */}
+        <ContactShadows
+          position={[0, -0.01, 0]}
+          opacity={0.6}
+          scale={6}
+          blur={2.5}
+          far={4}
+          color="#000000"
+        />
+
+        {/* Grass disc */}
         <Suspense fallback={null}>
-          <Grass count={150000} radius={4} windStrength={0.18} />
-          <GrassGround radius={5} />
+          <Grass
+            count={params.density}
+            radius={1.2}
+            windStrength={params.windSpeed}
+            turbulence={params.turbulence}
+            bladeWidth={params.bladeWidth}
+            rootColor={params.rootColor}
+            tipColor={params.tipColor}
+            sunDir={sunDir}
+          />
+          <GrassGround radius={1.25} />
         </Suspense>
 
         {/* Camera controls */}
         <OrbitControls
-          enablePan
+          enablePan={false}
           enableZoom
-          minDistance={0.2}
-          maxDistance={6}
-          minPolarAngle={0.3}
-          maxPolarAngle={Math.PI / 2.05}
-          target={[0, 0.12, 0]}
+          minDistance={1.5}
+          maxDistance={8}
+          minPolarAngle={Math.PI / 6}
+          maxPolarAngle={Math.PI / 2.2}
+          target={[0, 0.1, 0]}
           enableDamping
           dampingFactor={0.05}
         />

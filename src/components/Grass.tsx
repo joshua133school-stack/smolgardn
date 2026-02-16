@@ -333,7 +333,7 @@ export default function Grass({
       offsets[i * 3 + 2] = z;
 
       rotations[i] = Math.random() * Math.PI * 2;
-      heights[i] = 0.15 + Math.random() * 0.3;
+      heights[i] = 0.05 + Math.random() * 0.12;
       widths[i] = 0.6 + Math.random() * 0.8;
       leans[i] = (Math.random() - 0.3) * 0.6;
       phases[i] = Math.random();

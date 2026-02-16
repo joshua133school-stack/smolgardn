@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, ContactShadows } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import Grass, { TerrainGround } from "./Grass";
 import type { GrassParams } from "./GrassControls";
 
@@ -16,7 +16,7 @@ function sunDirection(azimuthDeg: number, elevationDeg: number): [number, number
 /* ─── Main scene ─────────────────────────────────────────────── */
 export default function Scene({ params }: { params: GrassParams }) {
   const sunDir = sunDirection(params.sunAzimuth, params.sunElevation);
-  const sunIntensity = 1.5 + (params.sunElevation / 90) * 1.5;
+  const sunIntensity = 3.0 + (params.sunElevation / 90) * 2.0;
 
   return (
     <div className="w-full h-full">
@@ -32,31 +32,20 @@ export default function Scene({ params }: { params: GrassParams }) {
           camera.lookAt(0, 0.1, 0);
         }}
       >
-        {/* Dark background */}
         <color attach="background" args={["#ffffff"]} />
 
-        {/* Sun — direction driven by controls */}
+        {/* Bright sun */}
         <directionalLight
           color="#fffbe8"
           intensity={sunIntensity}
           position={sunDir}
         />
 
-        {/* Fill */}
-        <directionalLight color="#1a2a40" intensity={0.4} position={[-3, 5, -2]} />
+        {/* Warm fill from opposite side */}
+        <directionalLight color="#ffe8c0" intensity={1.2} position={[-3, 5, -2]} />
 
-        {/* Ambient — low for dark scene */}
-        <ambientLight color="#1a2030" intensity={0.5} />
-
-        {/* Soft shadow beneath the grass disc */}
-        <ContactShadows
-          position={[0, -0.01, 0]}
-          opacity={0.6}
-          scale={6}
-          blur={2.5}
-          far={4}
-          color="#000000"
-        />
+        {/* Bright ambient */}
+        <ambientLight color="#ffffff" intensity={1.0} />
 
         {/* Grass disc */}
         <Suspense fallback={null}>

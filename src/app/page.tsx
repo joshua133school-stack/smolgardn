@@ -2,7 +2,7 @@ import SceneLoader from "@/components/SceneLoader";
 
 export default function Home() {
   return (
-    <main className="h-screen bg-[#0a0a0a] flex flex-col items-center overflow-hidden">
+    <main className="h-screen bg-white flex flex-col items-center overflow-hidden">
       {/* Header */}
       <header className="w-full py-4 px-6 text-center shrink-0 z-10">
         <h1 className="text-sm font-light tracking-[0.4em] uppercase text-neutral-400">

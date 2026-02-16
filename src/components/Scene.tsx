@@ -33,7 +33,7 @@ export default function Scene({ params }: { params: GrassParams }) {
         }}
       >
         {/* Dark background */}
-        <color attach="background" args={["#0a0a0a"]} />
+        <color attach="background" args={["#ffffff"]} />
 
         {/* Sun — direction driven by controls */}
         <directionalLight

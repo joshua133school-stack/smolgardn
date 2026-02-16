@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, ContactShadows } from "@react-three/drei";
-import Grass, { GrassGround } from "./Grass";
+import Grass, { TerrainGround } from "./Grass";
 import type { GrassParams } from "./GrassControls";
 
 /* ─── Convert azimuth/elevation to a direction vector ──────── */
@@ -70,7 +70,7 @@ export default function Scene({ params }: { params: GrassParams }) {
             tipColor={params.tipColor}
             sunDir={sunDir}
           />
-          <GrassGround radius={1.25} />
+          <TerrainGround radius={1.25} sunDir={sunDir} />
         </Suspense>
 
         {/* Camera controls */}

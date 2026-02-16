@@ -5,42 +5,68 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
 /* ─────────────────────────────────────────────────────────────────
- *  GLSL — Vertex shader
- *  Each grass blade is a tapered quad (6 segments = 12 tris).
- *  Per-instance attributes drive position, rotation, height,
- *  lean, width, and color variation. Wind is computed from
- *  world-space position + time.
+ *  JS-side noise — must match the terrain heightmap exactly so
+ *  grass blades sit on the surface.
+ * ───────────────────────────────────────────────────────────────── */
+function hash2(x: number, y: number): number {
+  return ((Math.sin(x * 127.1 + y * 311.7) * 43758.5453123) % 1 + 1) % 1;
+}
+
+function valueNoise(px: number, py: number): number {
+  const ix = Math.floor(px);
+  const iy = Math.floor(py);
+  const fx = px - ix;
+  const fy = py - iy;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy);
+  const b = hash2(ix + 1, iy);
+  const c = hash2(ix, iy + 1);
+  const d = hash2(ix + 1, iy + 1);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+
+/** Terrain height at world (x, z). Gentle rolling hills + micro detail. */
+export function terrainHeight(x: number, z: number): number {
+  // Large gentle hills
+  let h = valueNoise(x * 0.8, z * 0.8) * 0.18;
+  // Medium bumps
+  h += valueNoise(x * 2.0 + 5.3, z * 2.0 + 3.7) * 0.06;
+  // Micro detail
+  h += valueNoise(x * 5.0 + 1.1, z * 5.0 + 2.9) * 0.02;
+  return h;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ *  GLSL — Vertex shader (grass blades)
  * ───────────────────────────────────────────────────────────────── */
 const vertexShader = /* glsl */ `
   precision highp float;
 
-  // Per-instance attributes
-  attribute vec3  instanceOffset;   // XZ position on the ground plane
-  attribute float instanceRotation; // Y-axis rotation
-  attribute float instanceHeight;   // blade height
-  attribute float instanceWidth;    // blade width
-  attribute float instanceLean;     // how much the blade leans
-  attribute float instancePhase;    // random phase for wind
-  attribute float instanceColorVar; // subtle hue shift per blade
+  attribute vec3  instanceOffset;
+  attribute float instanceRotation;
+  attribute float instanceHeight;
+  attribute float instanceWidth;
+  attribute float instanceLean;
+  attribute float instancePhase;
+  attribute float instanceColorVar;
 
   uniform float uTime;
   uniform float uWindStrength;
   uniform float uTurbulence;
   uniform float uBladeWidth;
 
-  varying float vHeight;       // 0 at base, 1 at tip
+  varying float vHeight;
   varying float vColorVar;
   varying vec3  vWorldNormal;
   varying vec3  vWorldPos;
   varying float vAO;
 
-  // Simple 2D rotation
   mat2 rot2(float a) {
     float s = sin(a), c = cos(a);
     return mat2(c, -s, s, c);
   }
 
-  // Value noise for spatially-varying wind
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
   }
@@ -57,7 +83,6 @@ const vertexShader = /* glsl */ `
   }
 
   void main() {
-    // Normalised height along the blade (position.y goes 0→1 in our geometry)
     float t = position.y;
     vHeight = t;
     vColorVar = instanceColorVar;
@@ -70,36 +95,31 @@ const vertexShader = /* glsl */ `
     float windAngle  = windNoise * 6.2831;
     float windPower  = (0.5 + 0.5 * windNoise2 + turbNoise) * uWindStrength;
 
-    // Bend increases with height² (base stays rooted)
     float bend = t * t * windPower;
     vec3 windDisp = vec3(cos(windAngle), 0.0, sin(windAngle)) * bend;
 
-    // Additional per-blade gust flutter (scaled by turbulence)
-    float flutter = sin(uTime * 3.5 + instancePhase * 6.2831) * (0.04 + uTurbulence * 0.06) * t * t;
+    float flutter = sin(uTime * 3.5 + instancePhase * 6.2831)
+                  * (0.04 + uTurbulence * 0.06) * t * t;
 
     // ─── Build blade in local space ────────────────
-    // X is width, Y is height — blade width driven by uniform
-    float w = uBladeWidth * instanceWidth * (1.0 - t * 0.85); // taper toward tip
+    float w = uBladeWidth * instanceWidth * (1.0 - t * 0.85);
     vec3 localPos = vec3(position.x * w, position.y * instanceHeight, 0.0);
 
-    // Apply lean (a static forward-tilt curve)
     float leanBend = instanceLean * t * t;
     localPos.z += leanBend * instanceHeight;
 
-    // Rotate blade around Y axis
     localPos.xz = rot2(instanceRotation) * localPos.xz;
 
-    // ─── Normal (approximate) ──────────────────────
+    // ─── Normal ────────────────────────────────────
     vec3 localNormal = normal;
     localNormal.xz = rot2(instanceRotation) * localNormal.xz;
     vWorldNormal = normalize(normalMatrix * localNormal);
 
-    // Final world position
+    // instanceOffset.y already contains the terrain height (set in JS)
     vec3 worldPos = localPos + instanceOffset + windDisp;
     worldPos.x += flutter;
     vWorldPos = worldPos;
 
-    // AO — darker at the base
     vAO = smoothstep(0.0, 0.35, t);
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(worldPos, 1.0);
@@ -107,21 +127,15 @@ const vertexShader = /* glsl */ `
 `;
 
 /* ─────────────────────────────────────────────────────────────────
- *  GLSL — Fragment shader
- *  Realistic grass shading with:
- *  - Base-to-tip color gradient
- *  - Subsurface scattering approximation
- *  - Specular highlight (anisotropic-ish)
- *  - Ambient occlusion at base
- *  - Per-blade color variation
+ *  GLSL — Fragment shader (grass blades)
  * ───────────────────────────────────────────────────────────────── */
 const fragmentShader = /* glsl */ `
   precision highp float;
 
-  uniform vec3  uBaseColor;      // dark green at root
-  uniform vec3  uTipColor;       // bright green/yellow at tip
-  uniform vec3  uSSSColor;       // subsurface / translucency tint
-  uniform vec3  uSunDir;         // main light direction (normalised)
+  uniform vec3  uBaseColor;
+  uniform vec3  uTipColor;
+  uniform vec3  uSSSColor;
+  uniform vec3  uSunDir;
   uniform vec3  uSunColor;
   uniform float uTime;
 
@@ -137,34 +151,23 @@ const fragmentShader = /* glsl */ `
     vec3 V = normalize(cameraPosition - vWorldPos);
     vec3 H = normalize(L + V);
 
-    // ─── Base → tip gradient ───────────────────────
     float t = vHeight;
     vec3 grassColor = mix(uBaseColor, uTipColor, smoothstep(0.0, 1.0, t));
-
-    // Per-blade hue variation (shift toward yellow or blue-green)
     grassColor += (vColorVar - 0.5) * vec3(0.04, 0.06, -0.02);
 
-    // ─── Lambertian diffuse ────────────────────────
     float NdotL = max(dot(N, L), 0.0);
-    float diffuse = NdotL * 0.7 + 0.3; // wrapped diffuse for softness
+    float diffuse = NdotL * 0.7 + 0.3;
 
-    // ─── Subsurface scattering (light through blade) ─
     float sss = pow(max(dot(-V, L), 0.0), 3.0) * 0.6;
-    sss *= smoothstep(0.0, 0.6, t); // stronger toward tip (thinner)
+    sss *= smoothstep(0.0, 0.6, t);
 
-    // ─── Specular (anisotropic approximation) ──────
     float spec = pow(max(dot(N, H), 0.0), 40.0) * 0.35;
-    spec *= smoothstep(0.2, 0.8, t); // no spec at occluded base
+    spec *= smoothstep(0.2, 0.8, t);
 
-    // ─── Compose ───────────────────────────────────
     vec3 color = grassColor * diffuse * uSunColor;
     color += uSSSColor * sss;
     color += uSunColor * spec;
-
-    // AO at the base
     color *= mix(0.25, 1.0, vAO);
-
-    // Slight warm tint in lower region (soil reflection)
     color += vec3(0.02, 0.01, 0.0) * (1.0 - t) * (1.0 - t);
 
     gl_FragColor = vec4(color, 1.0);
@@ -172,20 +175,98 @@ const fragmentShader = /* glsl */ `
 `;
 
 /* ─────────────────────────────────────────────────────────────────
- *  React component
+ *  GLSL — Terrain dirt shader
  * ───────────────────────────────────────────────────────────────── */
-const BLADE_SEGMENTS = 6; // vertical segments per blade
+const terrainVertexShader = /* glsl */ `
+  varying vec3 vWorldPos;
+  varying vec3 vNormal;
+
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorldPos = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+
+const terrainFragmentShader = /* glsl */ `
+  precision highp float;
+
+  uniform vec3  uSunDir;
+  uniform vec3  uSunColor;
+
+  varying vec3 vWorldPos;
+  varying vec3 vNormal;
+
+  // Noise for dirt variation
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+
+  void main() {
+    vec3 N = normalize(vNormal);
+    vec3 L = normalize(uSunDir);
+
+    vec2 xz = vWorldPos.xz;
+
+    // ─── Dirt base color with variation ────────────
+    vec3 dirtDark  = vec3(0.22, 0.14, 0.08);  // rich dark soil
+    vec3 dirtMid   = vec3(0.35, 0.22, 0.12);  // medium brown
+    vec3 dirtLight = vec3(0.45, 0.32, 0.18);  // sandy highlights
+
+    float n1 = noise(xz * 3.0);
+    float n2 = noise(xz * 8.0 + 5.0);
+    float n3 = noise(xz * 20.0 + 10.0);        // fine grain
+
+    // Blend between soil tones
+    vec3 dirt = mix(dirtDark, dirtMid, smoothstep(0.3, 0.7, n1));
+    dirt = mix(dirt, dirtLight, smoothstep(0.5, 0.9, n2) * 0.4);
+
+    // Fine speckle (pebbles / gravel)
+    float speckle = smoothstep(0.65, 0.72, n3);
+    dirt = mix(dirt, dirtLight * 1.2, speckle * 0.3);
+
+    // Darker in low areas (moisture)
+    float heightFactor = smoothstep(-0.02, 0.15, vWorldPos.y);
+    dirt = mix(dirt * 0.7, dirt, heightFactor);
+
+    // ─── Lighting ──────────────────────────────────
+    float NdotL = max(dot(N, L), 0.0);
+    float diffuse = NdotL * 0.6 + 0.4;  // wrapped
+
+    vec3 color = dirt * diffuse * uSunColor;
+
+    // Subtle ambient
+    color += dirt * vec3(0.08, 0.06, 0.04);
+
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+/* ─────────────────────────────────────────────────────────────────
+ *  React — Grass component
+ * ───────────────────────────────────────────────────────────────── */
+const BLADE_SEGMENTS = 6;
 
 function makeBladeGeometry(): THREE.InstancedBufferGeometry {
   const geo = new THREE.InstancedBufferGeometry();
-
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
 
   for (let i = 0; i <= BLADE_SEGMENTS; i++) {
-    const t = i / BLADE_SEGMENTS; // 0 at base, 1 at tip
-    // Two vertices per row: left (-0.5) and right (+0.5)
+    const t = i / BLADE_SEGMENTS;
     positions.push(-0.5, t, 0);
     positions.push(0.5, t, 0);
     normals.push(0, 0, 1);
@@ -242,16 +323,18 @@ export default function Grass({
     const colorVars = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
-      // Distribute in a circle with density falloff at edges
       const angle = Math.random() * Math.PI * 2;
       const r = Math.sqrt(Math.random()) * radius;
-      offsets[i * 3] = Math.cos(angle) * r;
-      offsets[i * 3 + 1] = 0;
-      offsets[i * 3 + 2] = Math.sin(angle) * r;
+      const x = Math.cos(angle) * r;
+      const z = Math.sin(angle) * r;
+
+      offsets[i * 3] = x;
+      offsets[i * 3 + 1] = terrainHeight(x, z); // Y follows terrain
+      offsets[i * 3 + 2] = z;
 
       rotations[i] = Math.random() * Math.PI * 2;
-      heights[i] = 0.15 + Math.random() * 0.3; // 0.15 – 0.45 units
-      widths[i] = 0.6 + Math.random() * 0.8; // relative multiplier
+      heights[i] = 0.15 + Math.random() * 0.3;
+      widths[i] = 0.6 + Math.random() * 0.8;
       leans[i] = (Math.random() - 0.3) * 0.6;
       phases[i] = Math.random();
       colorVars[i] = Math.random();
@@ -265,7 +348,6 @@ export default function Grass({
     geo.setAttribute("instancePhase", new THREE.InstancedBufferAttribute(phases, 1));
     geo.setAttribute("instanceColorVar", new THREE.InstancedBufferAttribute(colorVars, 1));
 
-    // Tell Three.js how many instances to draw
     geo.instanceCount = count;
 
     return { geometry: geo };
@@ -283,12 +365,10 @@ export default function Grass({
       uSunDir: { value: new THREE.Vector3(...sunDir).normalize() },
       uSunColor: { value: new THREE.Color("#fff5e0") },
     }),
-    // Only create once — we update in useEffect
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
-  // Update uniforms reactively when props change
   useEffect(() => {
     uniforms.uWindStrength.value = windStrength;
     uniforms.uTurbulence.value = turbulence;
@@ -319,12 +399,59 @@ export default function Grass({
   );
 }
 
-/* ─── Ground plane beneath the grass ─────────────────────────── */
-export function GrassGround({ radius = 1.25 }: { radius?: number }) {
+/* ─────────────────────────────────────────────────────────────────
+ *  React — Terrain disc (dirt ground with hills)
+ * ───────────────────────────────────────────────────────────────── */
+const TERRAIN_SEGMENTS = 128;
+
+export function TerrainGround({
+  radius = 1.25,
+  sunDir = [4, 8, 3] as [number, number, number],
+}: {
+  radius?: number;
+  sunDir?: [number, number, number];
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.CircleGeometry(radius, TERRAIN_SEGMENTS, 0, Math.PI * 2);
+
+    // Rotate to XZ plane (CircleGeometry lies in XY by default)
+    geo.rotateX(-Math.PI / 2);
+
+    // Displace Y with terrain noise
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      pos.setY(i, terrainHeight(x, z));
+    }
+
+    geo.computeVertexNormals();
+    return geo;
+  }, [radius]);
+
+  const uniforms = useMemo(
+    () => ({
+      uSunDir: { value: new THREE.Vector3(...sunDir).normalize() },
+      uSunColor: { value: new THREE.Color("#fff5e0") },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  useEffect(() => {
+    uniforms.uSunDir.value.set(...sunDir).normalize();
+  }, [uniforms, sunDir]);
+
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]} receiveShadow>
-      <circleGeometry args={[radius, 64]} />
-      <meshStandardMaterial color="#1a2e10" roughness={1} metalness={0} />
+    <mesh ref={meshRef} geometry={geometry} receiveShadow>
+      <shaderMaterial
+        vertexShader={terrainVertexShader}
+        fragmentShader={terrainFragmentShader}
+        uniforms={uniforms}
+        side={THREE.DoubleSide}
+      />
     </mesh>
   );
 }

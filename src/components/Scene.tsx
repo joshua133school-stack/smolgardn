@@ -3,9 +3,7 @@
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import {
-  useGLTF,
   OrbitControls,
-  Center,
   Environment,
   ContactShadows,
   AccumulativeShadows,
@@ -19,26 +17,8 @@ import {
   ToneMapping,
 } from "@react-three/postprocessing";
 import { ToneMappingMode } from "postprocessing";
-import * as THREE from "three";
 import { GlassDome, SoilGround, BasePlate, DustMotes } from "./Terrarium";
-
-/* ─── GLB model ──────────────────────────────────────────────── */
-function Model() {
-  const { scene } = useGLTF("/Untitled.glb");
-  scene.traverse((child) => {
-    if ((child as THREE.Mesh).isMesh) {
-      child.castShadow = true;
-      child.receiveShadow = true;
-    }
-  });
-  return (
-    <Center disableY>
-      <primitive object={scene} position={[0, 0.02, 0]} />
-    </Center>
-  );
-}
-
-useGLTF.preload("/Untitled.glb");
+import Grass, { GrassGround } from "./Grass";
 
 /* ─── Post-processing stack ──────────────────────────────────── */
 function Effects() {
@@ -70,7 +50,7 @@ export default function Scene() {
   return (
     <div className="w-full h-full">
       <Canvas
-        camera={{ position: [3.5, 2.5, 3.5], fov: 35, near: 0.1, far: 100 }}
+        camera={{ position: [2.2, 1.6, 2.2], fov: 38, near: 0.01, far: 100 }}
         shadows
         gl={{
           antialias: true,
@@ -80,7 +60,7 @@ export default function Scene() {
         style={{ background: "#f5f0eb" }}
         dpr={[1, 2]}
         onCreated={({ camera }) => {
-          camera.lookAt(0, 0.8, 0);
+          camera.lookAt(0, 0.5, 0);
         }}
       >
         {/* HDR environment for realistic reflections & ambient light */}
@@ -151,16 +131,19 @@ export default function Scene() {
         {/* Terrarium composition */}
         <Suspense fallback={null}>
           <group>
-            {/* The model inside the dome */}
-            <Model />
+            {/* 80k procedural grass blades with custom shaders */}
+            <Grass count={80000} radius={1.4} windStrength={0.15} />
 
-            {/* Soil ground */}
+            {/* Dark earth ground beneath the grass */}
+            <GrassGround />
+
+            {/* Soil ground (visible at edges) */}
             <SoilGround />
 
             {/* Wooden base plate */}
             <BasePlate />
 
-            {/* Glass dome rendered last for transparency */}
+            {/* Glass dome */}
             <GlassDome />
 
             {/* Floating dust / pollen particles */}
@@ -175,11 +158,11 @@ export default function Scene() {
         <OrbitControls
           enablePan={false}
           enableZoom={true}
-          minDistance={3}
-          maxDistance={12}
+          minDistance={2}
+          maxDistance={10}
           minPolarAngle={Math.PI / 6}
           maxPolarAngle={Math.PI / 2.2}
-          target={[0, 0.8, 0]}
+          target={[0, 0.5, 0]}
           enableDamping
           dampingFactor={0.05}
         />

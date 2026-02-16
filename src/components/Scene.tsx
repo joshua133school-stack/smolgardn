@@ -1,40 +1,27 @@
 "use client";
 
+import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
+import { useGLTF, OrbitControls, Center } from "@react-three/drei";
 import * as THREE from "three";
 
-function CornerCubes() {
-  const s = 1; // cube size
-  const half = s / 2;
-
+function Model() {
+  const { scene } = useGLTF("/Untitled.glb");
   return (
-    <group>
-      {/* Red — along X axis */}
-      <mesh position={[half, 0, 0]}>
-        <boxGeometry args={[s, s, s]} />
-        <meshStandardMaterial color="#e63946" roughness={0.35} metalness={0.05} />
-      </mesh>
-
-      {/* Green — along Y axis */}
-      <mesh position={[0, half, 0]}>
-        <boxGeometry args={[s, s, s]} />
-        <meshStandardMaterial color="#2a9d4e" roughness={0.35} metalness={0.05} />
-      </mesh>
-
-      {/* Blue — along Z axis */}
-      <mesh position={[0, 0, half]}>
-        <boxGeometry args={[s, s, s]} />
-        <meshStandardMaterial color="#457bbd" roughness={0.35} metalness={0.05} />
-      </mesh>
-    </group>
+    <Center>
+      <primitive object={scene} />
+    </Center>
   );
 }
+
+// Preload so drei can start fetching as early as possible
+useGLTF.preload("/Untitled.glb");
 
 export default function Scene() {
   return (
     <div className="w-full h-full">
       <Canvas
-        camera={{ position: [3, 3, 3], fov: 40, near: 0.1, far: 100 }}
+        camera={{ position: [4, 3, 4], fov: 40, near: 0.1, far: 200 }}
         gl={{
           antialias: true,
           alpha: true,
@@ -49,10 +36,14 @@ export default function Scene() {
         }}
       >
         <ambientLight color="#ffffff" intensity={0.6} />
-        <directionalLight color="#ffffff" intensity={1.8} position={[5, 8, 4]} />
+        <directionalLight color="#ffffff" intensity={1.8} position={[5, 8, 4]} castShadow />
         <directionalLight color="#c8d8ff" intensity={0.4} position={[-3, 4, -2]} />
 
-        <CornerCubes />
+        <Suspense fallback={null}>
+          <Model />
+        </Suspense>
+
+        <OrbitControls enablePan={false} enableZoom={true} minDistance={2} maxDistance={20} />
       </Canvas>
     </div>
   );

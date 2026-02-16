@@ -238,7 +238,7 @@ export default function Grass({
       offsets[i * 3 + 2] = Math.sin(angle) * r;
 
       rotations[i] = Math.random() * Math.PI * 2;
-      heights[i] = 0.12 + Math.random() * 0.22; // 0.12 – 0.34 units
+      heights[i] = 0.15 + Math.random() * 0.3; // 0.15 – 0.45 units
       widths[i] = 0.008 + Math.random() * 0.012;
       leans[i] = (Math.random() - 0.3) * 0.6;
       phases[i] = Math.random();
@@ -300,7 +300,7 @@ export function GrassGround({ radius = 1.55 }: { radius?: number }) {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]} receiveShadow>
       <circleGeometry args={[radius, 64]} />
-      <meshStandardMaterial color="#2a1a0c" roughness={1} metalness={0} />
+      <meshStandardMaterial color="#2d5a1e" roughness={1} metalness={0} />
     </mesh>
   );
 }

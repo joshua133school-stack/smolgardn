@@ -19,7 +19,7 @@ export const DEFAULT_PARAMS: GrassParams = {
   sunElevation: 55,
   windSpeed: 0.15,
   turbulence: 0.3,
-  density: 100000,
+  density: 150000,
   bladeWidth: 0.012,
   rootColor: "#1a3a0a",
   tipColor: "#6db33f",
@@ -176,7 +176,7 @@ export default function GrassControls({
             label="Density"
             value={params.density}
             min={5000}
-            max={120000}
+            max={200000}
             step={1000}
             onChange={(v) => set("density", v)}
             displayValue={params.density.toLocaleString()}

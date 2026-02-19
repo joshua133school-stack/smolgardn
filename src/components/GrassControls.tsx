@@ -19,8 +19,8 @@ export const DEFAULT_PARAMS: GrassParams = {
   sunElevation: 55,
   windSpeed: 0.15,
   turbulence: 0.3,
-  density: 100000,
-  bladeWidth: 0.012,
+  density: 60000,
+  bladeWidth: 0.022,
   rootColor: "#1a3a0a",
   tipColor: "#6db33f",
 };

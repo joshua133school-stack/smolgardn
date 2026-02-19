@@ -170,11 +170,11 @@ const fragmentShader = /* glsl */ `
     color += uSSSColor * sss * uSunIntensity;
     color += uSunColor * spec * uSunIntensity;
 
-    // Softer AO — don't crush the base so hard
-    color *= mix(0.5, 1.0, vAO);
+    // Very gentle AO — just a hint of darkening at the root
+    color *= mix(0.75, 1.0, vAO);
 
-    // Ambient fill so nothing is pitch black
-    color += grassColor * 0.15;
+    // Strong ambient fill so light reaches the base
+    color += grassColor * 0.3;
 
     gl_FragColor = vec4(color, 1.0);
   }

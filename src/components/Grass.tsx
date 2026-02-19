@@ -137,6 +137,7 @@ const fragmentShader = /* glsl */ `
   uniform vec3  uSSSColor;
   uniform vec3  uSunDir;
   uniform vec3  uSunColor;
+  uniform float uSunIntensity;
   uniform float uTime;
 
   varying float vHeight;
@@ -164,11 +165,16 @@ const fragmentShader = /* glsl */ `
     float spec = pow(max(dot(N, H), 0.0), 40.0) * 0.35;
     spec *= smoothstep(0.2, 0.8, t);
 
-    vec3 color = grassColor * diffuse * uSunColor;
-    color += uSSSColor * sss;
-    color += uSunColor * spec;
-    color *= mix(0.25, 1.0, vAO);
-    color += vec3(0.02, 0.01, 0.0) * (1.0 - t) * (1.0 - t);
+    // Apply sun intensity to all lighting terms
+    vec3 color = grassColor * diffuse * uSunColor * uSunIntensity;
+    color += uSSSColor * sss * uSunIntensity;
+    color += uSunColor * spec * uSunIntensity;
+
+    // Softer AO — don't crush the base so hard
+    color *= mix(0.5, 1.0, vAO);
+
+    // Ambient fill so nothing is pitch black
+    color += grassColor * 0.15;
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -194,6 +200,7 @@ const terrainFragmentShader = /* glsl */ `
 
   uniform vec3  uSunDir;
   uniform vec3  uSunColor;
+  uniform float uSunIntensity;
 
   varying vec3 vWorldPos;
   varying vec3 vNormal;
@@ -245,10 +252,10 @@ const terrainFragmentShader = /* glsl */ `
     float NdotL = max(dot(N, L), 0.0);
     float diffuse = NdotL * 0.6 + 0.4;  // wrapped
 
-    vec3 color = dirt * diffuse * uSunColor;
+    vec3 color = dirt * diffuse * uSunColor * uSunIntensity;
 
-    // Subtle ambient
-    color += dirt * vec3(0.08, 0.06, 0.04);
+    // Ambient fill
+    color += dirt * vec3(0.12, 0.10, 0.07);
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -297,6 +304,7 @@ interface GrassProps {
   rootColor?: string;
   tipColor?: string;
   sunDir?: [number, number, number];
+  sunIntensity?: number;
 }
 
 export default function Grass({
@@ -308,6 +316,7 @@ export default function Grass({
   rootColor = "#1a3a0a",
   tipColor = "#6db33f",
   sunDir = [4, 8, 3],
+  sunIntensity = 2.0,
 }: GrassProps) {
   const meshRef = useRef<THREE.Mesh>(null);
 
@@ -364,6 +373,7 @@ export default function Grass({
       uSSSColor: { value: new THREE.Color("#8ec44c") },
       uSunDir: { value: new THREE.Vector3(...sunDir).normalize() },
       uSunColor: { value: new THREE.Color("#fff5e0") },
+      uSunIntensity: { value: sunIntensity },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -376,7 +386,8 @@ export default function Grass({
     uniforms.uBaseColor.value.set(rootColor);
     uniforms.uTipColor.value.set(tipColor);
     uniforms.uSunDir.value.set(...sunDir).normalize();
-  }, [uniforms, windStrength, turbulence, bladeWidth, rootColor, tipColor, sunDir]);
+    uniforms.uSunIntensity.value = sunIntensity;
+  }, [uniforms, windStrength, turbulence, bladeWidth, rootColor, tipColor, sunDir, sunIntensity]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
@@ -407,9 +418,11 @@ const TERRAIN_SEGMENTS = 128;
 export function TerrainGround({
   radius = 1.25,
   sunDir = [4, 8, 3] as [number, number, number],
+  sunIntensity = 2.0,
 }: {
   radius?: number;
   sunDir?: [number, number, number];
+  sunIntensity?: number;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
 
@@ -435,6 +448,7 @@ export function TerrainGround({
     () => ({
       uSunDir: { value: new THREE.Vector3(...sunDir).normalize() },
       uSunColor: { value: new THREE.Color("#fff5e0") },
+      uSunIntensity: { value: sunIntensity },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -442,7 +456,8 @@ export function TerrainGround({
 
   useEffect(() => {
     uniforms.uSunDir.value.set(...sunDir).normalize();
-  }, [uniforms, sunDir]);
+    uniforms.uSunIntensity.value = sunIntensity;
+  }, [uniforms, sunDir, sunIntensity]);
 
   return (
     <mesh ref={meshRef} geometry={geometry} receiveShadow>

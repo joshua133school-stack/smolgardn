@@ -16,7 +16,8 @@ function sunDirection(azimuthDeg: number, elevationDeg: number): [number, number
 /* ─── Main scene ─────────────────────────────────────────────── */
 export default function Scene({ params }: { params: GrassParams }) {
   const sunDir = sunDirection(params.sunAzimuth, params.sunElevation);
-  const sunIntensity = 3.0 + (params.sunElevation / 90) * 2.0;
+  // Sun intensity driven by elevation — passed into custom shaders
+  const sunIntensity = 1.5 + (params.sunElevation / 90) * 1.0;
 
   return (
     <div className="w-full h-full">
@@ -34,20 +35,7 @@ export default function Scene({ params }: { params: GrassParams }) {
       >
         <color attach="background" args={["#ffffff"]} />
 
-        {/* Bright sun */}
-        <directionalLight
-          color="#fffbe8"
-          intensity={sunIntensity}
-          position={sunDir}
-        />
-
-        {/* Warm fill from opposite side */}
-        <directionalLight color="#ffe8c0" intensity={1.2} position={[-3, 5, -2]} />
-
-        {/* Bright ambient */}
-        <ambientLight color="#ffffff" intensity={1.0} />
-
-        {/* Grass disc */}
+        {/* Grass disc — custom shaders handle all lighting internally */}
         <Suspense fallback={null}>
           <Grass
             count={params.density}
@@ -58,8 +46,9 @@ export default function Scene({ params }: { params: GrassParams }) {
             rootColor={params.rootColor}
             tipColor={params.tipColor}
             sunDir={sunDir}
+            sunIntensity={sunIntensity}
           />
-          <TerrainGround radius={1.25} sunDir={sunDir} />
+          <TerrainGround radius={1.25} sunDir={sunDir} sunIntensity={sunIntensity} />
         </Suspense>
 
         {/* Camera controls */}

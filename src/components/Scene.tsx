@@ -16,7 +16,7 @@ function sunDirection(azimuthDeg: number, elevationDeg: number): [number, number
 /* ─── Main scene ─────────────────────────────────────────────── */
 export default function Scene({ params }: { params: GrassParams }) {
   const sunDir = sunDirection(params.sunAzimuth, params.sunElevation);
-  const sunIntensity = 5.0 + (params.sunElevation / 90) * 3.0;
+  const sunIntensity = 3.0 + (params.sunElevation / 90) * 2.0;
 
   return (
     <div className="w-full h-full">
@@ -42,13 +42,10 @@ export default function Scene({ params }: { params: GrassParams }) {
         />
 
         {/* Warm fill from opposite side */}
-        <directionalLight color="#ffe8c0" intensity={2.0} position={[-3, 5, -2]} />
+        <directionalLight color="#ffe8c0" intensity={1.2} position={[-3, 5, -2]} />
 
         {/* Bright ambient */}
-        <ambientLight color="#ffffff" intensity={1.8} />
-
-        {/* Sky fill from above */}
-        <hemisphereLight args={["#b1e1ff", "#e8d5b0", 1.2]} />
+        <ambientLight color="#ffffff" intensity={1.0} />
 
         {/* Grass disc */}
         <Suspense fallback={null}>

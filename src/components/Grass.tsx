@@ -95,11 +95,11 @@ const vertexShader = /* glsl */ `
     float windAngle  = windNoise * 6.2831;
     float windPower  = (0.5 + 0.5 * windNoise2 + turbNoise) * uWindStrength;
 
-    float bend = t * t * t * windPower * 1.8;
+    float bend = t * t * windPower;
     vec3 windDisp = vec3(cos(windAngle), 0.0, sin(windAngle)) * bend;
 
-    float flutter = sin(uTime * 4.0 + instancePhase * 6.2831)
-                  * (0.08 + uTurbulence * 0.12) * t * t * t;
+    float flutter = sin(uTime * 3.5 + instancePhase * 6.2831)
+                  * (0.04 + uTurbulence * 0.06) * t * t;
 
     // ─── Build blade in local space ────────────────
     float w = uBladeWidth * instanceWidth * (1.0 - t * 0.85);
@@ -335,7 +335,7 @@ export default function Grass({
       rotations[i] = Math.random() * Math.PI * 2;
       heights[i] = 0.05 + Math.random() * 0.12;
       widths[i] = 0.6 + Math.random() * 0.8;
-      leans[i] = (Math.random() - 0.3) * 1.0;
+      leans[i] = (Math.random() - 0.3) * 0.6;
       phases[i] = Math.random();
       colorVars[i] = Math.random();
     }

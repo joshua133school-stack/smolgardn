@@ -1,10 +1,10 @@
-import Scene from "@/components/Scene";
-import { DEFAULT_PARAMS } from "@/components/GrassControls";
+import Script from "next/script";
 
 export default function Home() {
   return (
     <main className="h-screen w-full overflow-hidden">
-      <Scene params={DEFAULT_PARAMS} />
+      <div id="root" className="w-full h-full" />
+      <Script src="/index-Cb3RmT86.js" strategy="afterInteractive" />
     </main>
   );
 }

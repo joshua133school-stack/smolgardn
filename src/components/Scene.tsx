@@ -29,7 +29,7 @@ export default function Scene({ params }: { params: GrassParams }) {
           alpha: false,
           powerPreference: "high-performance",
         }}
-        dpr={[1, 2]}
+        dpr={[1, 1.5]}
         onCreated={({ camera }) => {
           camera.lookAt(0, 0.1, 0);
         }}

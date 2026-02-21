@@ -413,7 +413,7 @@ export default function Grass({
 /* ─────────────────────────────────────────────────────────────────
  *  React — Terrain disc (dirt ground with hills)
  * ───────────────────────────────────────────────────────────────── */
-const TERRAIN_SEGMENTS = 128;
+const TERRAIN_SEGMENTS = 64;
 
 export function TerrainGround({
   radius = 1.25,

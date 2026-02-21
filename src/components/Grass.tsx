@@ -55,6 +55,7 @@ const vertexShader = /* glsl */ `
   uniform float uWindStrength;
   uniform float uTurbulence;
   uniform float uBladeWidth;
+  uniform float uGrowth;        // 0 = hidden in ground, 1 = fully grown
 
   varying float vHeight;
   varying float vColorVar;
@@ -87,6 +88,9 @@ const vertexShader = /* glsl */ `
     vHeight = t;
     vColorVar = instanceColorVar;
 
+    // Scale height by growth factor
+    float growHeight = instanceHeight * uGrowth;
+
     // ─── Wind ───────────────────────────────────────
     vec2 worldXZ = instanceOffset.xz;
     float windNoise  = noise(worldXZ * 0.4 + uTime * 0.3);
@@ -103,10 +107,10 @@ const vertexShader = /* glsl */ `
 
     // ─── Build blade in local space ────────────────
     float w = uBladeWidth * instanceWidth * (1.0 - t * 0.85);
-    vec3 localPos = vec3(position.x * w, position.y * instanceHeight, 0.0);
+    vec3 localPos = vec3(position.x * w, position.y * growHeight, 0.0);
 
     float leanBend = instanceLean * t * t;
-    localPos.z += leanBend * instanceHeight;
+    localPos.z += leanBend * growHeight;
 
     localPos.xz = rot2(instanceRotation) * localPos.xz;
 
@@ -139,6 +143,7 @@ const fragmentShader = /* glsl */ `
   uniform vec3  uSunColor;
   uniform float uSunIntensity;
   uniform float uTime;
+  uniform float uGrowth;
 
   varying float vHeight;
   varying float vColorVar;
@@ -147,6 +152,8 @@ const fragmentShader = /* glsl */ `
   varying float vAO;
 
   void main() {
+    if (uGrowth < 0.01) discard;
+
     vec3 N = normalize(vWorldNormal);
     vec3 L = normalize(uSunDir);
     vec3 V = normalize(cameraPosition - vWorldPos);
@@ -176,7 +183,8 @@ const fragmentShader = /* glsl */ `
     // Strong ambient fill so light reaches the base
     color += grassColor * 0.3;
 
-    gl_FragColor = vec4(color, 1.0);
+    float alpha = smoothstep(0.0, 0.15, uGrowth);
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -305,6 +313,7 @@ interface GrassProps {
   tipColor?: string;
   sunDir?: [number, number, number];
   sunIntensity?: number;
+  growth?: number;
 }
 
 export default function Grass({
@@ -317,6 +326,7 @@ export default function Grass({
   tipColor = "#6db33f",
   sunDir = [4, 8, 3],
   sunIntensity = 2.0,
+  growth = 1.0,
 }: GrassProps) {
   const meshRef = useRef<THREE.Mesh>(null);
 
@@ -368,6 +378,7 @@ export default function Grass({
       uWindStrength: { value: windStrength },
       uTurbulence: { value: turbulence },
       uBladeWidth: { value: bladeWidth },
+      uGrowth: { value: growth },
       uBaseColor: { value: new THREE.Color(rootColor) },
       uTipColor: { value: new THREE.Color(tipColor) },
       uSSSColor: { value: new THREE.Color("#8ec44c") },
@@ -383,17 +394,20 @@ export default function Grass({
     uniforms.uWindStrength.value = windStrength;
     uniforms.uTurbulence.value = turbulence;
     uniforms.uBladeWidth.value = bladeWidth;
+    uniforms.uGrowth.value = growth;
     uniforms.uBaseColor.value.set(rootColor);
     uniforms.uTipColor.value.set(tipColor);
     uniforms.uSunDir.value.set(...sunDir).normalize();
     uniforms.uSunIntensity.value = sunIntensity;
-  }, [uniforms, windStrength, turbulence, bladeWidth, rootColor, tipColor, sunDir, sunIntensity]);
+  }, [uniforms, windStrength, turbulence, bladeWidth, growth, rootColor, tipColor, sunDir, sunIntensity]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
     const mat = meshRef.current.material as THREE.ShaderMaterial;
     mat.uniforms.uTime.value += delta;
   });
+
+  if (growth < 0.001) return null;
 
   return (
     <mesh ref={meshRef} frustumCulled={false}>
@@ -403,6 +417,7 @@ export default function Grass({
         fragmentShader={fragmentShader}
         uniforms={uniforms}
         side={THREE.DoubleSide}
+        transparent
         depthWrite
         depthTest
       />

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import Grass, { TerrainGround } from "./Grass";
+import Cow from "./Cow";
 import type { GrassParams } from "./GrassControls";
 
 /* ─── Convert azimuth/elevation to a direction vector ──────── */
@@ -35,6 +36,11 @@ export default function Scene({ params }: { params: GrassParams }) {
       >
         <color attach="background" args={["#ffffff"]} />
 
+        {/* Lights for solid-material objects (cow) — custom-shader
+            grass/terrain ignore these and compute lighting internally */}
+        <ambientLight intensity={0.5} color="#fff5e0" />
+        <directionalLight position={sunDir} intensity={1.2} color="#fff5e0" />
+
         {/* Grass disc — custom shaders handle all lighting internally */}
         <Suspense fallback={null}>
           <Grass
@@ -49,6 +55,7 @@ export default function Scene({ params }: { params: GrassParams }) {
             sunIntensity={sunIntensity}
           />
           <TerrainGround radius={1.25} sunDir={sunDir} sunIntensity={sunIntensity} />
+          <Cow />
         </Suspense>
 
         {/* Camera controls */}

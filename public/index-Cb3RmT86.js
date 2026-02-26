@@ -4125,6 +4125,12 @@ void main() {
       finalPos = pivot + tilted;
     }
 
+    // Global wind sway - whole structure bends with height
+    float heightRatio = clamp(finalPos.y / 5.5, 0.0, 1.0);
+    float globalWind = combinedWind * heightRatio * heightRatio * 0.8;
+    finalPos.x += globalWind;
+    finalPos.z += globalWind * 0.3;
+
     vWorldPosition = finalPos;
     mat3 normalMat = rotY * rotX;
     vNormal = normalMat * normal;

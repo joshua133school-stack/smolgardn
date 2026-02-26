@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "smolgardn",
   description: "smolgardn",
   icons: {
-    icon: "/sg.ico",
+    icon: "/1.ico",
   },
 };
 

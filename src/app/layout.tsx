@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "smolgardn",
   description: "smolgardn",
+  icons: {
+    icon: "/sg.ico",
+  },
 };
 
 export default function RootLayout({
